@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Analog Worm - Chill Mode</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2b2b2b;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #fff;
+        }
+        
+        .console-case {
+            background: #4a5568;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: inset -5px -5px 10px #2d3748, inset 5px 5px 10px #718096, 0 15px 35px rgba(0,0,0,0.5);
+            border: 4px solid #2d3748;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .screen-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #cbd5e0;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .screen-container {
+            background-color: #8f9779;
+            padding: 8px;
+            border-radius: 6px;
+            border: 6px solid #1a202c;
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            background-color: #9bbc0f;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            color: #0f380f;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            border-bottom: 2px solid #0f380f;
+            padding-bottom: 2px;
+        }
+
+        .controls-container {
+            margin-top: 25px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(3, 50px);
+            background: #2d3748;
+            padding: 5px;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .pad-btn {
+            background: #1a202c;
+            border: none;
+            color: #fff;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            box-shadow: 0 3px 0 #000;
+        }
+        .pad-btn:active {
+            transform: translateY(3px);
+            box-shadow: none;
+        }
+        
+        #btn-up { grid-column: 2; grid-row: 1; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 3; }
+
+        .instructions {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: #a0aec0;
+            text-align: center;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="console-case">
+        <div class="screen-title">WORM_ANALOG.EXE</div>
+        
+        <div class="screen-container">
+            <div class="stats">
+                <div>SKOR: <span id="score">000</span></div>
+                <div id="status-msg">READY</div>
+            </div>
+            <canvas id="gameCanvas" width="300" height="300"></canvas>
+        </div>
+
+        <div class="controls-container">
+            <div class="d-pad">
+                <button id="btn-up" class="pad-btn">▲</button>
+                <button id="btn-left" class="pad-btn">◀</button>
+                <button id="btn-right" class="pad-btn">▶</button>
+                <button id="btn-down" class="pad-btn">▼</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <strong>CHILL MODE:</strong> Cacing berjalan lebih lambat dan bisa menembus dinding! Tapi awas, jangan tabrak badan sendiri!
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const statusMsg = document.getElementById('status-msg');
+
+        const gridSize = 15; 
+        const tileCount = canvas.width / gridSize;
+
+        let worm = [{x: 10, y: 10}];
+        let food = {x: 5, y: 5};
+        let dx = 1; 
+        let dy = 0;
+        let score = 0;
+        let gameInterval;
+        let isGameOver = false;
+        let gameStarted = false;
+
+        function main() {
+            if (isGameOver) {
+                resetGame();
+                return;
+            }
+            
+            if (!gameStarted) {
+                gameStarted = true;
+                statusMsg.textContent = "PLAY";
+                // DIUBAH: Mengubah dari 120ms menjadi 200ms agar jalannya lebih lambat & santai
+                gameInterval = setInterval(drawGame, 200); 
+                return;
+            }
+        }
+
+        function drawGame() {
+            updateWorm();
+            
+            if (checkGameOver()) {
+                isGameOver = true;
+                statusMsg.textContent = "KO!";
+                clearInterval(gameInterval);
+                drawGameOverScreen();
+                return;
+            }
+
+            clearCanvas();
+            drawFood();
+            drawWorm();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = "#9bbc0f";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawWorm() {
+            ctx.fillStyle = "#0f380f"; 
+            worm.forEach((part, index) => {
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 1, gridSize - 1);
+                if(index === 0) {
+                    ctx.fillStyle = "#306230"; 
+                    ctx.fillRect(part.x * gridSize + 3, part.y * gridSize + 3, gridSize - 7, gridSize - 7);
+                    ctx.fillStyle = "#0f380f";
+                }
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = "#306230"; 
+            ctx.fillRect(food.x * gridSize + 2, food.y * gridSize + 2, gridSize - 5, gridSize - 5);
+            ctx.clearRect(food.x * gridSize + 5, food.y * gridSize + 5, gridSize - 11, gridSize - 11);
+        }
+
+        function updateWorm() {
+            // DIUBAH: Efek menembus dinding (jika tembus batas, balik ke posisi 0 atau ujung lainnya)
+            let newX = worm[0].x + dx;
+            let newY = worm[0].y + dy;
+
+            if (newX < 0) newX = tileCount - 1;
+            if (newX >= tileCount) newX = 0;
+            if (newY < 0) newY = tileCount - 1;
+            if (newY >= tileCount) newY = 0;
+
+            const head = {x: newX, y: newY};
+            worm.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreDisplay.textContent = String(score).padStart(3, '0');
+                generateFood();
+            } else {
+                worm.pop();
+            }
+        }
+
+        function generateFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+            
+            worm.forEach(part => {
+                if (part.x === food.x && part.y === food.y) {
+                    generateFood();
+                }
+            });
+        }
+
+        function checkGameOver() {
+            const head = worm[0];
+            
+            // DIUBAH: Sekarang menabrak dinding tidak mati. Hanya mati jika menabrak diri sendiri.
+            for (let i = 1; i < worm.length; i++) {
+                if (worm[i].x === head.x && worm[i].y === head.y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function drawGameOverScreen() {
+            ctx.fillStyle = "rgba(155, 188, 15, 0.9)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = "#0f380f";
+            ctx.font = "bold 20px 'Courier New'";
+            ctx.textAlign = "center";
+            ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
+            ctx.font = "14px 'Courier New'";
+            ctx.fillText("KLIK UNTUK MAIN LAGI", canvas.width / 2, canvas.height / 2 + 20);
+        }
+
+        function changeDirection(direction) {
+            if (!gameStarted) main();
+
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if (direction === 'LEFT' && !goingRight) { dx = -1; dy = 0; }
+            if (direction === 'UP' && !goingDown) { dx = 0; dy = -1; }
+            if (direction === 'RIGHT' && !goingLeft) { dx = 1; dy = 0; }
+            if (direction === 'DOWN' && !goingUp) { dx = 0; dy = 1; }
+        }
+
+        function resetGame() {
+            worm = [{x: 10, y: 10}];
+            dx = 1;
+            dy = 0;
+            score = 0;
+            scoreDisplay.textContent = "000";
+            isGameOver = false;
+            gameStarted = true;
+            statusMsg.textContent = "PLAY";
+            generateFood();
+            gameInterval = setInterval(drawGame, 200);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') changeDirection('LEFT');
+            if (e.key === 'ArrowUp') changeDirection('UP');
+            if (e.key === 'ArrowRight') changeDirection('RIGHT');
+            if (e.key === 'ArrowDown') changeDirection('DOWN');
+            if (e.key === ' ' && isGameOver) resetGame();
+        });
+
+        document.getElementById('btn-up').addEventListener('click', () => changeDirection('UP'));
+        document.getElementById('btn-down').addEventListener('click', () => changeDirection('DOWN'));
+        document.getElementById('btn-left').addEventListener('click', () => changeDirection('LEFT'));
+        document.getElementById('btn-right').addEventListener('click', () => changeDirection('RIGHT'));
+
+        canvas.addEventListener('click', () => {
+            if (!gameStarted || isGameOver) main();
+        });
+
+        clearCanvas();
+        ctx.fillStyle = "#0f380f";
+        ctx.font = "bold 16px 'Courier New'";
+        ctx.textAlign = "center";
+        ctx.fillText("TEKAN SCREEN/D-PAD", canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillText("UNTUK MEMULAI", canvas.width / 2, canvas.height / 2 + 15);
+    </script>
+</body>
+</html>
